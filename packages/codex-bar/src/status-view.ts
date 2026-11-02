@@ -19,13 +19,13 @@ function formatWindow({ seconds, remaining }: UsageWindow): string {
 export function renderStatus(ctx: ExtensionContext, status?: Status): void {
   if (!ctx.hasUI) return;
   if (!status) {
-    ctx.ui.setWidget("codex-status", undefined);
+    ctx.ui.setWidget("codex-bar", undefined);
     return;
   }
   const usage = status.usage.kind === "ready"
     ? status.usage.windows.map(formatWindow).join(" | ")
     : `Usage: ${status.usage.kind}`;
-  ctx.ui.setWidget("codex-status", [
+  ctx.ui.setWidget("codex-bar", [
     `Codex | ${usage} | Effort: ${ctx.thinkingLevel ?? "unknown"} | Fast: ${status.fast}`,
   ], { placement: "belowEditor" });
 }

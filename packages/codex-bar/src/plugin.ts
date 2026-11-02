@@ -3,7 +3,7 @@ import { FastMode } from "./fast-mode.ts";
 import { renderStatus, type UsageState } from "./status-view.ts";
 import { CodexUsageClient, isCodexModel } from "./usage-client.ts";
 
-export class CodexStatusPlugin {
+export class CodexBarPlugin {
   private readonly pi: ExtensionAPI;
   private readonly client = new CodexUsageClient();
   private readonly fast = new FastMode();

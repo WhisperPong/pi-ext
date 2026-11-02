@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { CodexStatusPlugin } from "./plugin.ts";
+import { CodexBarPlugin } from "./plugin.ts";
 
 export default function (pi: ExtensionAPI) {
-  new CodexStatusPlugin(pi).register();
+  new CodexBarPlugin(pi).register();
 }

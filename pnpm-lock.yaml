@@ -18,7 +18,7 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  packages/codex-status:
+  packages/codex-bar:
     dependencies:
       '@earendil-works/pi-coding-agent':
         specifier: '*'

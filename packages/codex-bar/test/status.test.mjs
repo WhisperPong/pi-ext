@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import codexStatus from "../src/index.ts";
+import codexBar from "../src/index.ts";
 
 const token = `header.${Buffer.from(JSON.stringify({
   "https://api.openai.com/auth": { chatgpt_account_id: "test-account" },
@@ -31,13 +31,13 @@ function harness() {
     },
     ui: {
       setWidget(key, content, options) {
-        assert.equal(key, "codex-status");
+        assert.equal(key, "codex-bar");
         widgets.push({ content, options });
       },
       notify(message, level) { notifications.push({ message, level }); },
     },
   };
-  codexStatus({
+  codexBar({
     on: (event, handler) => handlers.set(event, handler),
     registerCommand: (name, command) => commands.set(name, command),
   });
