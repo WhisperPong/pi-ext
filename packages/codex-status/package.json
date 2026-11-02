@@ -1,0 +1,16 @@
+{
+  "name": "@pi-ext/codex-status",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p ../../tsconfig.json",
+    "test": "node --test test/*.test.mjs"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
