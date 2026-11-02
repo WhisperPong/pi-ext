@@ -1,0 +1,20 @@
+{
+  "name": "pi-ext",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "pi -e .",
+    "check": "pnpm -r --if-present check"
+  },
+  "pi": {
+    "extensions": ["./packages/*/src/index.ts"]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.5.0",
+    "typescript": "^7.0.2"
+  }
+}
