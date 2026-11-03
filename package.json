@@ -7,8 +7,11 @@
     "node": ">=22.19.0"
   },
   "scripts": {
+    "install:all": "pnpm install && pi install .",
     "dev": "pi -e .",
-    "check": "pnpm -r --if-present check"
+    "check": "pnpm -r --if-present check",
+    "test": "node --test",
+    "test:agent": "node --test --test-reporter=./scripts/agent-reporter.mjs"
   },
   "pi": {
     "extensions": ["./packages/*/src/index.ts"]

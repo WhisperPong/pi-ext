@@ -3,15 +3,14 @@
 个人 Pi 插件，使用 pnpm workspace 和 TypeScript。
 
 ```sh
-pnpm install
-pnpm dev
+pnpm install:all    # 安装全部插件
+pnpm dev            # 本地开发
+pnpm check          # 类型检查
+pnpm test           # 全部测试
+pnpm -s test:agent  # 精简输出，保留失败详情
 ```
 
 插件入口：`packages/<name>/src/index.ts`。
-
-`pnpm check` 执行各插件的 `check` 脚本。
-
-`pi install .` 安装全部插件。
 
 `codex-bar`：输入框下显示 Codex 剩余额度、Effort 和 Fast。
 
