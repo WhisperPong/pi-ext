@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import codexBar from "../src/index.ts";
+import codexBar from "../index.ts";
 
 const token = `header.${Buffer.from(JSON.stringify({
   "https://api.openai.com/auth": { chatgpt_account_id: "test-account" },

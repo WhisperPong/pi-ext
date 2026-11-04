@@ -14,7 +14,7 @@
     "test:agent": "node --test --test-reporter=./scripts/agent-reporter.mjs"
   },
   "pi": {
-    "extensions": ["./packages/*/src/index.ts"]
+    "extensions": ["./packages/*/index.ts"]
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^1.5.0",

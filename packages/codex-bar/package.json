@@ -8,7 +8,7 @@
     "test": "node --test test/*.test.mjs"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": ["./index.ts"]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

@@ -10,7 +10,7 @@ pnpm test           # 全部测试
 pnpm -s test:agent  # 精简输出，保留失败详情
 ```
 
-插件入口：`packages/<name>/src/index.ts`。
+插件入口：`packages/<name>/index.ts`，实现放在 `src/`。
 
 `codex-bar`：输入框下显示 Codex 剩余额度、Effort 和 Fast。
 
