@@ -1,17 +1,30 @@
 # PI-Ext
 
-个人 Pi 插件，使用 pnpm workspace 和 TypeScript。
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+A collection of Pi extensions.
+
+## Installation
+
+Run the following command in this repository:
 
 ```sh
-pnpm install:all    # 安装全部插件
-pnpm dev            # 本地开发
-pnpm check          # 类型检查
-pnpm test           # 全部测试
-pnpm -s test:agent  # 精简输出，保留失败详情
+pnpm run setup
 ```
 
-插件入口：`packages/<name>/index.ts`，实现放在 `src/`。
+Start Pi, or run `/reload` in an existing session to load the extensions.
 
-`codex-bar`：输入框下显示 Codex 剩余额度、Effort 和 Fast。
+## Extensions
 
-`/fast on|off` 设置请求优先级，`/fast` 切换，`/fast status` 查看。设置仅在当前会话有效；未设置时沿用 provider 配置。状态栏区分请求设置与服务端实际状态。
+### codex-bar
+
+Displays remaining Codex quota, reasoning effort (Effort), and Fast mode below the editor when using a Codex model.
+
+| Command | Description |
+| --- | --- |
+| `/fast on` | Enable Fast mode for subsequent requests |
+| `/fast off` | Disable Fast mode for subsequent requests |
+| `/fast` | Toggle Fast mode |
+| `/fast status` | Show the current Fast status |
+
+Fast mode defaults to off whenever a session starts or reloads. Settings apply only to the current session and do not change reasoning effort. Fast mode availability depends on the model and account, and it may consume more quota.
