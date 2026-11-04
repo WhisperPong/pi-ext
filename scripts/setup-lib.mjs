@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, readdir, readlink, realpath, rename, symlink, unlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, readlink, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, matchesGlob, relative, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -31,20 +31,14 @@ export async function discoverResources(root) {
     const manifest = JSON.parse(await readFile(join(dirname(source), "package.json"), "utf8"));
     extensions.push({ id: entry.name, source, description: manifest.description ?? "" });
   }
-  const skills = [];
-  for (const entry of await directories(join(root, "skills"))) {
-    const source = join(root, "skills", entry.name);
-    if (!(await statIfPresent(join(source, "SKILL.md")))?.isFile()) continue;
-    skills.push({ id: entry.name, source, description: "" });
-  }
-  return { extensions, skills };
+  return { extensions };
 }
 
 export function setupPaths({ root, home = homedir(), agentDir = process.env.PI_CODING_AGENT_DIR } = {}) {
   return {
     root: resolve(root),
     settingsPath: join(agentDir ? resolve(agentDir) : join(home, ".pi", "agent"), "settings.json"),
-    skillsDir: join(home, ".agents", "skills"),
+    legacySkillsDir: join(home, ".agents", "skills"),
   };
 }
 
@@ -82,15 +76,16 @@ export async function isRootPackage(entry, paths) {
   return await canonical(resolve(dirname(paths.settingsPath), expanded)) === await canonical(paths.root);
 }
 
-export async function skillStatus(skill, skillsDir) {
-  const target = join(skillsDir, skill.id);
+// One-time migration only: never remove real directories or another source's link.
+async function hasLegacyReviewLink(paths) {
+  const target = join(paths.legacySkillsDir, "review-fix");
   const stat = await statIfPresent(target);
-  if (!stat) return "new";
-  if (stat.isSymbolicLink()) {
-    const linked = resolve(dirname(target), await readlink(target));
-    if (await canonical(linked) === await canonical(skill.source)) return "installed";
-  }
-  return "exists";
+  return Boolean(stat?.isSymbolicLink()
+    && resolve(dirname(target), await readlink(target)) === join(paths.root, "skills", "review-fix"));
+}
+
+async function removeLegacyReviewLink(paths) {
+  if (await hasLegacyReviewLink(paths)) await unlink(join(paths.legacySkillsDir, "review-fix"));
 }
 
 function extensionEnabled(entry, extension, root) {
@@ -115,15 +110,13 @@ export async function describeResources(resources, paths, settings) {
   for (const entry of settings.packages ?? []) {
     if (await isRootPackage(entry, paths)) rootEntries.push(entry);
   }
+  const legacyReview = await hasLegacyReviewLink(paths);
   const extensions = resources.extensions.map((extension) => {
     const installed = rootEntries.some((entry) => extensionEnabled(entry, extension, paths.root));
-    return { ...extension, installed, selected: installed, status: installed ? "installed" : "new" };
+    const migrating = extension.id === "skill-manager" && legacyReview;
+    return { ...extension, installed, selected: installed || migrating, status: installed ? "installed" : migrating ? "migration" : "new" };
   });
-  const skills = await Promise.all(resources.skills.map(async (skill) => {
-    const status = await skillStatus(skill, paths.skillsDir);
-    return { ...skill, status, selected: status === "installed" };
-  }));
-  return { extensions, skills };
+  return { extensions };
 }
 
 export async function configureExtensions(paths, extensions) {
@@ -158,19 +151,6 @@ export async function configureExtensions(paths, extensions) {
   }
 }
 
-export async function installSkill(skill, skillsDir) {
-  const status = await skillStatus(skill, skillsDir);
-  if (status !== "new") return status;
-  await mkdir(skillsDir, { recursive: true });
-  try {
-    await symlink(skill.source, join(skillsDir, skill.id), process.platform === "win32" ? "junction" : "dir");
-    return "linked";
-  } catch (error) {
-    if (error.code === "EEXIST") return skillStatus(skill, skillsDir);
-    throw error;
-  }
-}
-
 export async function runSetup({ paths, choose, run, log = console.log }) {
   const resources = await discoverResources(paths.root);
   const settings = await readSettings(paths.settingsPath);
@@ -181,18 +161,13 @@ export async function runSetup({ paths, choose, run, log = console.log }) {
     return;
   }
   const extensions = options.extensions.filter((entry) => selection.extensions.includes(entry.id));
-  const skills = options.skills.filter((entry) => selection.skills.includes(entry.id));
-  const selectedIds = new Set([...extensions.map((entry) => `extension:${entry.id}`), ...skills.map((entry) => `skill:${entry.id}`)]);
-  if (selection.extensions.some((id) => !selectedIds.has(`extension:${id}`))
-    || selection.skills.some((id) => !selectedIds.has(`skill:${id}`))) {
+  const selectedIds = new Set(extensions.map((entry) => entry.id));
+  if (selection.extensions.some((id) => !selectedIds.has(id))) {
     throw new Error("Unknown setup selection.");
   }
   if (extensions.length) await run("pnpm", ["install"], paths.root);
   await configureExtensions(paths, extensions);
-  for (const skill of skills) {
-    const result = await installSkill(skill, paths.skillsDir);
-    log(`${skill.id}: ${result === "exists" ? "already exists; left untouched" : result}`);
-  }
-  log(`Enabled ${extensions.length} extension(s). Skills are shared through ${paths.skillsDir}.`);
+  if (selectedIds.has("skill-manager")) await removeLegacyReviewLink(paths);
+  log(`Enabled ${extensions.length} extension(s). Packaged tasks are managed by skill-manager.`);
   log("Start Pi or run /reload to load your selection.");
 }

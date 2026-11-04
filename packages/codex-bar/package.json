@@ -1,7 +1,7 @@
 {
   "name": "@pi-ext/codex-bar",
   "version": "0.0.0",
-  "description": "Codex quota, reasoning effort, Fast mode, and output speed below the editor.",
+  "description": "Codex quota, reasoning effort, and Fast mode below the editor.",
   "private": true,
   "type": "module",
   "scripts": {

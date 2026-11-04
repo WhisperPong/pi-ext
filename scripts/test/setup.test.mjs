@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { PassThrough } from "node:stream";
 import test from "node:test";
-import { configureExtensions, describeResources, discoverResources, installSkill, readSettings, runSetup, setupPaths, skillStatus } from "../setup-lib.mjs";
-import { chooseResources } from "../setup.mjs";
+import { configureExtensions, describeResources, discoverResources, readSettings, runSetup, setupPaths } from "../setup-lib.mjs";
 
 async function fixture(t) {
   const base = await mkdtemp(join(tmpdir(), "pi-ext-setup-"));
@@ -25,39 +23,39 @@ async function addExtension(f, name) {
   return { id: name, source };
 }
 
-async function addSkill(f, name) {
-  const source = join(f.paths.root, "skills", name);
-  await f.file(join(source, "SKILL.md"), `---\nname: ${name}\ndescription: Test skill\n---\nInstructions\n`);
-  await f.file(join(source, "scripts", "helper.sh"), "echo test\n");
-  return { id: name, source };
+async function legacyLink(f, target = join(f.paths.root, "skills", "review-fix")) {
+  await mkdir(f.paths.legacySkillsDir, { recursive: true });
+  const link = join(f.paths.legacySkillsDir, "review-fix");
+  await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+  return link;
 }
 
-test("discovers extensions and portable skill directories without dependencies", async (t) => {
+test("discovers only extensions without dependencies or standalone skill discovery", async (t) => {
   const f = await fixture(t);
-  assert.deepEqual(await discoverResources(f.paths.root), { extensions: [], skills: [] });
+  assert.deepEqual(await discoverResources(f.paths.root), { extensions: [] });
   await addExtension(f, "codex-bar");
-  await addSkill(f, "example");
-  await f.file(join(f.paths.root, "skills", ".gitkeep"));
-  await f.file(join(f.paths.root, "skills", "incomplete", "README.md"));
+  await addExtension(f, "skill-manager");
+  await f.file(join(f.paths.root, "skills", "legacy", "SKILL.md"), "Legacy instructions");
+  await f.file(join(f.paths.root, "packages", "incomplete", "README.md"));
   const resources = await discoverResources(f.paths.root);
-  assert.deepEqual(resources.extensions.map((entry) => entry.id), ["codex-bar"]);
+  assert.deepEqual(resources.extensions.map((entry) => entry.id), ["codex-bar", "skill-manager"]);
   assert.equal(resources.extensions[0].description, "codex-bar description");
-  assert.deepEqual(resources.skills.map((entry) => entry.id), ["example"]);
+  assert.equal(resources.skills, undefined);
 });
 
-test("cancel does not install dependencies, create settings, or link skills", async (t) => {
+test("cancel does not install dependencies, change settings, or remove a legacy link", async (t) => {
   const f = await fixture(t);
-  await addExtension(f, "codex-bar");
-  await addSkill(f, "example");
+  await addExtension(f, "skill-manager");
+  const link = await legacyLink(f);
   await runSetup({ paths: f.paths, choose: async () => undefined, run: () => assert.fail("Must not run"), log: () => {} });
   await assert.rejects(readFile(f.paths.settingsPath), { code: "ENOENT" });
-  await assert.rejects(readdir(f.paths.skillsDir), { code: "ENOENT" });
+  assert.equal(await readlink(link), join(f.paths.root, "skills", "review-fix"));
 });
 
 test("installs only selected extensions, migrates a legacy root entry, and preserves other settings", async (t) => {
   const f = await fixture(t);
   await addExtension(f, "codex-bar");
-  await addExtension(f, "other");
+  await addExtension(f, "skill-manager");
   const source = relative(dirname(f.paths.settingsPath), f.paths.root);
   await f.file(f.paths.settingsPath, JSON.stringify({ theme: "system", packages: ["npm:unrelated", source], skills: ["!private*"] }));
   const runs = [];
@@ -65,11 +63,10 @@ test("installs only selected extensions, migrates a legacy root entry, and prese
     paths: f.paths,
     choose: async (options) => {
       assert.ok(options.extensions.every((entry) => entry.status === "installed"));
-      return { extensions: ["codex-bar"], skills: [] };
+      return { extensions: ["codex-bar"] };
     },
     run: async (...args) => {
       runs.push(args);
-      // An unrelated setting changed while dependencies were being installed.
       const settings = await readSettings(f.paths.settingsPath);
       await f.file(f.paths.settingsPath, JSON.stringify({ ...settings, defaultThinkingLevel: "high" }));
     },
@@ -85,55 +82,70 @@ test("installs only selected extensions, migrates a legacy root entry, and prese
   assert.deepEqual(options.extensions.map((entry) => entry.selected), [true, false]);
 });
 
-test("deselecting extensions disables only this repository and does not remove skills", async (t) => {
+test("deselecting extensions disables only this repository and does not touch other skills", async (t) => {
   const f = await fixture(t);
   const extension = await addExtension(f, "codex-bar");
-  const skill = await addSkill(f, "example");
+  const unrelated = join(f.paths.legacySkillsDir, "other", "SKILL.md");
+  await f.file(unrelated, "User instructions");
   await configureExtensions(f.paths, [extension]);
-  await installSkill(skill, f.paths.skillsDir);
-  await runSetup({ paths: f.paths, choose: async () => ({ extensions: [], skills: [] }), run: () => assert.fail("No dependencies needed"), log: () => {} });
+  await runSetup({ paths: f.paths, choose: async () => ({ extensions: [] }), run: () => assert.fail("No dependencies needed"), log: () => {} });
   assert.deepEqual((await readSettings(f.paths.settingsPath)).packages[0].extensions, []);
-  assert.equal(await skillStatus(skill, f.paths.skillsDir), "installed");
+  assert.equal(await readFile(unrelated, "utf8"), "User instructions");
 });
 
-test("links selected skills with their supporting files and is safe to rerun", async (t) => {
+test("preselects skill-manager for migration and removes only the old repository-owned link after apply", async (t) => {
   const f = await fixture(t);
-  const skill = await addSkill(f, "example");
-  const run = () => assert.fail("Skills-only setup needs no pnpm install");
-  const choose = async () => ({ extensions: [], skills: [skill.id] });
+  await addExtension(f, "skill-manager");
+  const link = await legacyLink(f);
+  const run = async () => {};
+  const choose = async (options) => {
+    assert.equal(options.extensions[0].selected, true);
+    assert.ok(["migration", "installed"].includes(options.extensions[0].status));
+    return { extensions: ["skill-manager"] };
+  };
   await runSetup({ paths: f.paths, choose, run, log: () => {} });
-  assert.equal(await readFile(join(f.paths.skillsDir, skill.id, "scripts", "helper.sh"), "utf8"), "echo test\n");
-  const link = await readlink(join(f.paths.skillsDir, skill.id));
+  await assert.rejects(readlink(link), { code: "ENOENT" });
+  assert.deepEqual((await readSettings(f.paths.settingsPath)).packages[0].extensions, ["packages/skill-manager/index.ts"]);
+  const original = await readFile(f.paths.settingsPath, "utf8");
   await runSetup({ paths: f.paths, choose, run, log: () => {} });
-  assert.equal(await readlink(join(f.paths.skillsDir, skill.id)), link);
-  assert.equal(await skillStatus(skill, f.paths.skillsDir), "installed");
-  await assert.rejects(readFile(f.paths.settingsPath), { code: "ENOENT" });
+  assert.equal(await readFile(f.paths.settingsPath, "utf8"), original);
 });
 
-test("existing local skills and broken symlinks are never overwritten", async (t) => {
-  const f = await fixture(t);
-  const local = await addSkill(f, "local");
-  const broken = await addSkill(f, "broken");
-  await f.file(join(f.paths.skillsDir, "local", "SKILL.md"), "local changes");
-  await symlink(join(f.paths.root, "missing"), join(f.paths.skillsDir, "broken"), "dir");
-  assert.equal(await installSkill(local, f.paths.skillsDir), "exists");
-  assert.equal(await installSkill(broken, f.paths.skillsDir), "exists");
-  assert.equal(await readFile(join(f.paths.skillsDir, "local", "SKILL.md"), "utf8"), "local changes");
-  assert.equal(await readlink(join(f.paths.skillsDir, "broken")), join(f.paths.root, "missing"));
+test("migration preserves real skill directories and links belonging to another repository", async (t) => {
+  for (const kind of ["directory", "foreign-link"]) {
+    const f = await fixture(t);
+    await addExtension(f, "skill-manager");
+    const target = join(f.paths.legacySkillsDir, "review-fix");
+    if (kind === "directory") await f.file(join(target, "SKILL.md"), "Local instructions");
+    else await legacyLink(f, join(f.paths.root, "another-repo", "review-fix"));
+    await runSetup({ paths: f.paths, choose: async () => ({ extensions: ["skill-manager"] }), run: async () => {}, log: () => {} });
+    if (kind === "directory") assert.equal(await readFile(join(target, "SKILL.md"), "utf8"), "Local instructions");
+    else assert.equal(await readlink(target), join(f.paths.root, "another-repo", "review-fix"));
+  }
 });
 
-test("dependency failure and malformed settings do not change installation settings", async (t) => {
+test("leaves the legacy link intact if skill-manager is not selected", async (t) => {
   const f = await fixture(t);
-  await addExtension(f, "codex-bar");
+  await addExtension(f, "skill-manager");
+  const link = await legacyLink(f);
+  await runSetup({ paths: f.paths, choose: async () => ({ extensions: [] }), run: () => assert.fail("Must not run"), log: () => {} });
+  assert.equal(await readlink(link), join(f.paths.root, "skills", "review-fix"));
+});
+
+test("dependency failure and malformed settings do not change settings or remove legacy links", async (t) => {
+  const f = await fixture(t);
+  await addExtension(f, "skill-manager");
+  const link = await legacyLink(f);
   const original = '{"theme":"dark"}\n';
   await f.file(f.paths.settingsPath, original);
   await assert.rejects(runSetup({
     paths: f.paths,
-    choose: async () => ({ extensions: ["codex-bar"], skills: [] }),
+    choose: async () => ({ extensions: ["skill-manager"] }),
     run: async () => { throw new Error("Dependency installation failed"); },
     log: () => {},
   }), /Dependency installation failed/);
   assert.equal(await readFile(f.paths.settingsPath, "utf8"), original);
+  assert.equal(await readlink(link), join(f.paths.root, "skills", "review-fix"));
   await f.file(f.paths.settingsPath, "not JSON");
   await assert.rejects(runSetup({ paths: f.paths, choose: () => assert.fail("Cannot continue"), run: () => {}, log: () => {} }), /Cannot read/);
   assert.equal(await readFile(f.paths.settingsPath, "utf8"), "not JSON");
@@ -157,23 +169,23 @@ test("preserves root-package options and does not duplicate equivalent local pat
 
 test("respects a custom agent directory and refuses unknown selections", async (t) => {
   const f = await fixture(t);
-  const paths = setupPaths({ root: f.paths.root, home: dirname(f.paths.skillsDir), agentDir: join(f.paths.root, "custom-agent") });
+  const paths = setupPaths({ root: f.paths.root, agentDir: join(f.paths.root, "custom-agent") });
   assert.equal(paths.settingsPath, join(f.paths.root, "custom-agent", "settings.json"));
   await assert.rejects(runSetup({
     paths,
-    choose: async () => ({ extensions: ["missing"], skills: [] }),
+    choose: async () => ({ extensions: ["missing"] }),
     run: () => assert.fail("Must not run"),
     log: () => {},
   }), /Unknown setup selection/);
   await assert.rejects(readFile(paths.settingsPath), { code: "ENOENT" });
 });
 
-test("Pi loads only the selected extension and does not auto-load unselected bundled skills", async (t) => {
+test("Pi loads only the selected extension and does not expose packaged tasks as native skills", async (t) => {
   const { DefaultPackageManager, SettingsManager } = await import("@earendil-works/pi-coding-agent");
   const f = await fixture(t);
-  const extension = await addExtension(f, "codex-bar");
-  const other = await addExtension(f, "other");
-  const skill = await addSkill(f, "example");
+  const extension = await addExtension(f, "skill-manager");
+  const other = await addExtension(f, "codex-bar");
+  await f.file(join(f.paths.root, "packages", "skill-manager", "tasks", "review", "fix", "TASK.md"), "Task instructions");
   await f.file(join(f.paths.root, "package.json"), JSON.stringify({ pi: { extensions: ["./packages/*/index.ts"], skills: [] } }));
   await configureExtensions(f.paths, [extension]);
   const manager = new DefaultPackageManager({
@@ -184,7 +196,7 @@ test("Pi loads only the selected extension and does not auto-load unselected bun
   const resources = await manager.resolve();
   assert.ok(resources.extensions.some((entry) => entry.path === extension.source && entry.enabled));
   assert.ok(!resources.extensions.some((entry) => entry.path === other.source && entry.enabled));
-  assert.ok(!resources.skills.some((entry) => entry.path.startsWith(skill.source) && entry.enabled));
+  assert.ok(!resources.skills.some((entry) => entry.path.startsWith(`${f.paths.root}/`)));
 });
 
 test("recognizes existing package include and exclude filters", async (t) => {
@@ -201,55 +213,4 @@ test("recognizes existing package include and exclude filters", async (t) => {
     const options = await describeResources(resources, f.paths, { packages: [{ source: f.paths.root, extensions: filters }] });
     assert.deepEqual(options.extensions.map((entry) => entry.selected), expected);
   }
-});
-
-async function interactive(answers, options) {
-  const input = new PassThrough();
-  const output = new PassThrough();
-  input.isTTY = true;
-  output.isTTY = true;
-  let transcript = "";
-  output.on("data", (chunk) => {
-    const text = chunk.toString();
-    transcript += text;
-    if (text.includes("Numbers to toggle") || text.includes("Apply this selection?")) {
-      const answer = answers.shift();
-      setImmediate(() => {
-        if (answer === undefined) input.end();
-        else input.write(`${answer}\n`);
-      });
-    }
-  });
-  try {
-    const selection = await chooseResources(options, { input, output });
-    return { selection, transcript };
-  } finally {
-    input.destroy();
-    output.destroy();
-  }
-}
-
-const menu = {
-  extensions: [{ id: "codex-bar", description: "Codex status", selected: false, status: "new" }],
-  skills: [],
-};
-
-test("interactive chooser supports numbered selection and requires confirmation", async () => {
-  const { selection, transcript } = await interactive(["99", "1,1", "", "y"], menu);
-  assert.deepEqual(selection, { extensions: ["codex-bar"], skills: [] });
-  assert.match(transcript, /Invalid selection/);
-  assert.match(transcript, /Skills/);
-  assert.match(transcript, /none available/);
-  assert.equal(menu.extensions[0].selected, false);
-});
-
-test("interactive chooser supports all/none and cancellation including EOF", async () => {
-  assert.deepEqual((await interactive(["a", "n", "", "y"], menu)).selection, { extensions: [], skills: [] });
-  for (const answers of [["q"], ["", "n"], []]) {
-    assert.equal((await interactive(answers, menu)).selection, undefined);
-  }
-});
-
-test("interactive chooser rejects redirected input without making changes", async () => {
-  await assert.rejects(chooseResources({ extensions: [], skills: [] }, { input: new PassThrough(), output: new PassThrough() }), /interactive terminal/);
 });

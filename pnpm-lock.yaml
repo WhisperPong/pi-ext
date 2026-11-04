@@ -24,6 +24,12 @@ importers:
         specifier: '*'
         version: 1.5.0(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)
 
+  packages/skill-manager:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 1.5.0(@aws-sdk/credential-provider-node@3.972.92)(@smithy/signature-v4@5.7.5)(ws@8.22.1)
+
 packages:
 
   '@anthropic-ai/sdk@0.129.0':
