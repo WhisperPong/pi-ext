@@ -26,6 +26,6 @@ export function renderStatus(ctx: ExtensionContext, status?: Status): void {
     ? status.usage.windows.map(formatWindow).join(" | ")
     : `Usage: ${status.usage.kind}`;
   ctx.ui.setWidget("codex-bar", [
-    `Codex | ${usage} | Effort: ${ctx.thinkingLevel ?? "unknown"} | Fast: ${status.fast}`,
+    ctx.ui.theme.fg("dim", `Codex | ${usage} | Effort: ${ctx.thinkingLevel ?? "unknown"} | Fast: ${status.fast}`),
   ], { placement: "belowEditor" });
 }

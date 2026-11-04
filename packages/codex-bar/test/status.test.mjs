@@ -30,6 +30,7 @@ function harness() {
       },
     },
     ui: {
+      theme: { fg: (_color, text) => text },
       setWidget(key, content, options) {
         assert.equal(key, "codex-bar");
         widgets.push({ content, options });
@@ -66,13 +67,24 @@ test("shows current account quota below the editor and refreshes after a turn", 
   });
   await app.emit("session_start");
   assert.equal(app.widgets.at(-1).options.placement, "belowEditor");
-  assert.equal(app.text, "Codex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: unknown");
+  assert.equal(app.text, "Codex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: off");
   await app.emit("agent_end");
   assert.match(app.text, /5h: 60% left/);
   assert.equal(requests, 2);
 });
 
-test("updates effort and fast state without modifying the request", async (t) => {
+test("uses the same dim theme color as the built-in footer", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json(quota()));
+  const app = harness();
+  app.ctx.ui.theme.fg = (color, text) => {
+    assert.equal(color, "dim");
+    return `\u001b[90m${text}\u001b[39m`;
+  };
+  await app.emit("session_start");
+  assert.equal(app.text, "\u001b[90mCodex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: off\u001b[39m");
+});
+
+test("defaults Fast to off and observes server state without mutating the request", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json(quota()));
   const app = harness();
   await app.emit("session_start");
@@ -80,20 +92,21 @@ test("updates effort and fast state without modifying the request", async (t) =>
   await app.emit("thinking_level_select", { level: "low" });
   assert.match(app.text, /Effort: low/);
   const payload = Object.freeze({ service_tier: "priority" });
-  assert.equal(await app.emit("before_provider_request", { payload }), undefined);
-  assert.match(app.text, /Fast: on/);
+  assert.deepEqual(await app.emit("before_provider_request", { payload }), { service_tier: "default" });
+  assert.equal(payload.service_tier, "priority");
+  assert.match(app.text, /Fast: off/);
   await app.emit("provider_stream_event", {
     provider: "openai-codex", model: "previous-model",
     data: { type: "response.created", response: { service_tier: "default" } },
   });
-  assert.match(app.text, /Fast: on/);
+  assert.match(app.text, /Fast: off/);
   await app.emit("provider_stream_event", {
     provider: "openai-codex", model: "test-model",
-    data: { type: "response.created", response: { service_tier: "default" } },
+    data: { type: "response.created", response: { service_tier: "priority" } },
   });
-  assert.match(app.text, /Fast: on \(server: off\)/);
-  await app.emit("before_provider_request", { payload: {} });
-  assert.match(app.text, /Fast: unknown/);
+  assert.match(app.text, /Fast: off \(server: on\)/);
+  assert.deepEqual(await app.emit("before_provider_request", { payload: {} }), { service_tier: "default" });
+  assert.match(app.text, /Fast: off \(requested\)/);
 });
 
 test("/fast on and off override only service_tier on subsequent Codex requests", async (t) => {
@@ -103,7 +116,7 @@ test("/fast on and off override only service_tier on subsequent Codex requests",
   const payload = Object.freeze({
     model: "test-model", service_tier: "flex", reasoning: { effort: "high" }, input: [],
   });
-  assert.equal(await app.emit("before_provider_request", { payload }), undefined);
+  assert.deepEqual(await app.emit("before_provider_request", { payload }), { ...payload, service_tier: "default" });
   await app.command("on");
   assert.match(app.text, /Fast: on \(next request\)/);
   const fastRequest = await app.emit("before_provider_request", { payload });
@@ -116,6 +129,33 @@ test("/fast on and off override only service_tier on subsequent Codex requests",
   assert.deepEqual(await app.emit("before_provider_request", { payload }), {
     ...payload, service_tier: "default",
   });
+});
+
+test("Codex default responses do not falsely confirm or reject priority requests", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json(quota()));
+  const app = harness();
+  await app.emit("session_start");
+  await app.command("on");
+  await app.emit("before_provider_request", { payload: {} });
+  const observe = (tier, type = "response.completed") => app.emit("provider_stream_event", {
+    provider: "openai-codex", model: "test-model",
+    data: { type, response: { service_tier: tier } },
+  });
+  await observe("default", "response.created");
+  assert.match(app.text, /Fast: on \(requested\)$/);
+  await observe("default");
+  assert.match(app.text, /Fast: on \(requested\)$/);
+  await observe("priority");
+  assert.match(app.text, /Fast: on$/);
+  await observe("default");
+  assert.match(app.text, /Fast: on$/);
+  await app.emit("before_provider_request", { payload: {} });
+  await observe("flex");
+  assert.match(app.text, /Fast: on \(server: off\)$/);
+  await app.command("off");
+  await app.emit("before_provider_request", { payload: {} });
+  await observe("default");
+  assert.match(app.text, /Fast: off$/);
 });
 
 test("/fast toggles, status does not toggle, and invalid arguments leave the setting unchanged", async () => {
@@ -142,7 +182,7 @@ test("Fast setting survives model changes and resets for a new session", async (
   await app.emit("model_select");
   assert.equal((await app.emit("before_provider_request", { payload: {} })).service_tier, "priority");
   await app.emit("session_start");
-  assert.equal(await app.emit("before_provider_request", { payload: {} }), undefined);
+  assert.deepEqual(await app.emit("before_provider_request", { payload: {} }), { service_tier: "default" });
 });
 
 test("/fast supports Codex-compatible providers and rejects unrelated providers", async () => {

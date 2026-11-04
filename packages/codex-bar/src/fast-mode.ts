@@ -6,12 +6,13 @@ function readTier(tier: unknown): Mode | undefined {
 }
 
 export class FastMode {
-  private preference?: Mode;
+  private preference: Mode = "off";
   private requested?: Mode;
   private served?: Mode;
 
   get label(): string {
-    if (this.preference && this.preference !== this.requested) return `${this.preference} (next request)`;
+    if (!this.requested && !this.served) return this.preference;
+    if (this.preference !== this.requested) return `${this.preference} (next request)`;
     if (this.served && this.requested && this.served !== this.requested) {
       return `${this.requested} (server: ${this.served})`;
     }
@@ -27,7 +28,7 @@ export class FastMode {
   }
 
   reset(): void {
-    this.preference = undefined;
+    this.preference = "off";
     this.resetObservation();
   }
 
@@ -39,10 +40,8 @@ export class FastMode {
   prepare(payload: unknown): Record<string, unknown> | undefined {
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
     const original = payload as Record<string, unknown>;
-    const replacement = this.preference
-      ? { ...original, service_tier: this.preference === "on" ? "priority" : "default" }
-      : undefined;
-    this.requested = readTier((replacement ?? original).service_tier);
+    const replacement = { ...original, service_tier: this.preference === "on" ? "priority" : "default" };
+    this.requested = readTier(replacement.service_tier);
     this.served = undefined;
     return replacement;
   }
@@ -50,6 +49,9 @@ export class FastMode {
   observe(data: unknown): void {
     if (!data || typeof data !== "object") return;
     const response = (data as { response?: { service_tier?: unknown } }).response;
+    // Codex can report "default" for priority requests (Pi's
+    // resolveCodexServiceTier handles this too). It is not proof of a downgrade.
+    if (response?.service_tier === "default" && this.requested === "on") return;
     const served = readTier(response?.service_tier);
     if (served) this.served = served;
   }
