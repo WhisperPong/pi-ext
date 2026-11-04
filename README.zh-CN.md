@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Pi 插件集合。
+Pi 扩展与 skills 集合。
 
 ## 安装
 
@@ -12,13 +12,21 @@ Pi 插件集合。
 pnpm run setup
 ```
 
-启动 Pi，或在已有会话中执行 `/reload` 加载插件。
+安装向导会列出可选扩展和 skills，输入编号进行多选，按 Enter 检查选择，再确认安装。输入 `q` 或按 Ctrl+C 可取消，不会修改配置。
+
+再次运行 setup 可以调整本仓库启用的扩展；未选中的扩展会停用，已有 skills 不会被删除或覆盖。
+
+Skills 通过 `~/.agents/skills/` 供 Pi 和 Codex 共用。安装后请保留本仓库目录。目前尚未内置 skills。
+
+启动 Pi，或在已有会话中执行 `/reload` 加载所选内容。
 
 ## 插件
 
 ### codex-bar
 
-使用 Codex 模型时，在输入框下显示剩余额度、思考等级（Effort）和 Fast 状态。
+使用 Codex 模型时，在输入框下显示剩余额度、思考等级（Effort）、Fast 状态和输出速度。
+
+`Speed` 显示最近一次请求的平均输出速度（tokens/秒），包含等待和思考时间。请求进行中显示 `...`，暂无有效数据时显示 `--`。
 
 | 命令 | 功能 |
 | --- | --- |

@@ -8,6 +8,7 @@ export type UsageState =
 interface Status {
   usage: UsageState;
   fast: string;
+  speed: string;
 }
 
 function formatWindow({ seconds, remaining }: UsageWindow): string {
@@ -26,6 +27,6 @@ export function renderStatus(ctx: ExtensionContext, status?: Status): void {
     ? status.usage.windows.map(formatWindow).join(" | ")
     : `Usage: ${status.usage.kind}`;
   ctx.ui.setWidget("codex-bar", [
-    ctx.ui.theme.fg("dim", `Codex | ${usage} | Effort: ${ctx.thinkingLevel ?? "unknown"} | Fast: ${status.fast}`),
+    ctx.ui.theme.fg("dim", `Codex | ${usage} | Effort: ${ctx.thinkingLevel ?? "unknown"} | Fast: ${status.fast} | Speed: ${status.speed}`),
   ], { placement: "belowEditor" });
 }

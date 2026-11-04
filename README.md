@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-A collection of Pi extensions.
+A collection of Pi extensions and skills.
 
 ## Installation
 
@@ -12,13 +12,21 @@ Run the following command in this repository:
 pnpm run setup
 ```
 
-Start Pi, or run `/reload` in an existing session to load the extensions.
+The setup wizard lets you choose extensions and skills by number. Press Enter to review your selection, then confirm to install. Enter `q` or press Ctrl+C to cancel without making changes.
+
+Run setup again to change which extensions from this repository are enabled. Unselected extensions will be disabled; existing skills will not be removed or overwritten.
+
+Skills are shared with Pi and Codex through `~/.agents/skills/`. Keep this repository in place after setup. No skills are bundled yet.
+
+Start Pi, or run `/reload` in an existing session to load your selection.
 
 ## Extensions
 
 ### codex-bar
 
-Displays remaining Codex quota, reasoning effort (Effort), and Fast mode below the editor when using a Codex model.
+Displays remaining Codex quota, reasoning effort (Effort), Fast mode, and output speed below the editor when using a Codex model.
+
+`Speed` shows the latest request's average output tokens per second, including waiting and reasoning time. It displays `...` while a request is running and `--` when no measurement is available.
 
 | Command | Description |
 | --- | --- |

@@ -1,5 +1,6 @@
-import type { ExtensionAPI, ExtensionContext, ProviderStreamEvent } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, MessageEndEvent, ProviderStreamEvent } from "@earendil-works/pi-coding-agent";
 import { FastMode } from "./fast-mode.ts";
+import { OutputSpeed } from "./output-speed.ts";
 import { renderStatus, type UsageState } from "./status-view.ts";
 import { CodexUsageClient, isCodexModel } from "./usage-client.ts";
 
@@ -7,6 +8,7 @@ export class CodexBarPlugin {
   private readonly pi: ExtensionAPI;
   private readonly client = new CodexUsageClient();
   private readonly fast = new FastMode();
+  private readonly speed = new OutputSpeed();
   private usage: UsageState = { kind: "loading" };
   private pending?: AbortController;
 
@@ -28,6 +30,7 @@ export class CodexBarPlugin {
     this.pi.on("thinking_level_select", (_event, ctx) => this.render(ctx));
     this.pi.on("before_provider_request", (event, ctx) => this.prepareRequest(event.payload, ctx));
     this.pi.on("provider_stream_event", (event, ctx) => this.observeResponse(event, ctx));
+    this.pi.on("message_end", (event, ctx) => this.finishRequest(event, ctx));
     this.pi.on("session_shutdown", (_event, ctx) => {
       this.pending?.abort();
       renderStatus(ctx);
@@ -36,16 +39,20 @@ export class CodexBarPlugin {
 
   private startSession(ctx: ExtensionContext): Promise<void> {
     this.fast.reset();
+    this.speed.reset();
     return this.refresh(ctx);
   }
 
   private selectModel(ctx: ExtensionContext): Promise<void> {
     this.fast.resetObservation();
+    this.speed.reset();
     return this.refresh(ctx);
   }
 
   private render(ctx: ExtensionContext): void {
-    renderStatus(ctx, isCodexModel(ctx.model) ? { usage: this.usage, fast: this.fast.label } : undefined);
+    renderStatus(ctx, isCodexModel(ctx.model)
+      ? { usage: this.usage, fast: this.fast.label, speed: this.speed.label }
+      : undefined);
   }
 
   private async refresh(ctx: ExtensionContext): Promise<void> {
@@ -87,8 +94,18 @@ export class CodexBarPlugin {
   private prepareRequest(payload: unknown, ctx: ExtensionContext): unknown {
     if (!isCodexModel(ctx.model)) return;
     const replacement = this.fast.prepare(payload);
+    if (replacement) this.speed.start();
     this.render(ctx);
     return replacement;
+  }
+
+  private finishRequest(event: MessageEndEvent, ctx: ExtensionContext): void {
+    const message = event.message;
+    if (!isCodexModel(ctx.model) || message.role !== "assistant"
+      || message.provider !== ctx.model?.provider || message.model !== ctx.model.id) return;
+    this.speed.finish(message.stopReason === "error" || message.stopReason === "aborted"
+      ? undefined : message.usage.output);
+    this.render(ctx);
   }
 
   private observeResponse(event: ProviderStreamEvent, ctx: ExtensionContext): void {

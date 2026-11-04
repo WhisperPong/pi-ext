@@ -67,7 +67,7 @@ test("shows current account quota below the editor and refreshes after a turn", 
   });
   await app.emit("session_start");
   assert.equal(app.widgets.at(-1).options.placement, "belowEditor");
-  assert.equal(app.text, "Codex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: off");
+  assert.equal(app.text, "Codex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: off | Speed: --");
   await app.emit("agent_end");
   assert.match(app.text, /5h: 60% left/);
   assert.equal(requests, 2);
@@ -81,7 +81,56 @@ test("uses the same dim theme color as the built-in footer", async (t) => {
     return `\u001b[90m${text}\u001b[39m`;
   };
   await app.emit("session_start");
-  assert.equal(app.text, "\u001b[90mCodex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: off\u001b[39m");
+  assert.equal(app.text, "\u001b[90mCodex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: off | Speed: --\u001b[39m");
+});
+
+test("shows per-request output speed after completion and resets it on model or session changes", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json(quota()));
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  const app = harness();
+  const message = {
+    role: "assistant", provider: "openai-codex", model: "test-model",
+    stopReason: "stop", usage: { output: 120 },
+  };
+  await app.emit("session_start");
+  assert.match(app.text, /Speed: --$/);
+  await app.emit("message_end", { message });
+  assert.match(app.text, /Speed: --$/);
+  await app.emit("before_provider_request", { payload: {} });
+  assert.match(app.text, /Speed: \.\.\.$/);
+  now = 1000;
+  await app.emit("message_end", { message: { role: "toolResult" } });
+  await app.emit("message_end", { message: { ...message, model: "previous-model" } });
+  assert.match(app.text, /Speed: \.\.\.$/);
+  now = 2000;
+  await app.emit("message_end", { message });
+  assert.match(app.text, /Speed: 60\.0 tok\/s$/);
+  now = 5000;
+  await app.emit("agent_end");
+  assert.match(app.text, /Speed: 60\.0 tok\/s$/);
+  await app.emit("model_select");
+  assert.match(app.text, /Speed: --$/);
+  await app.emit("before_provider_request", { payload: {} });
+  now = 6000;
+  await app.emit("message_end", { message });
+  assert.match(app.text, /Speed: 120\.0 tok\/s$/);
+  await app.emit("session_start");
+  assert.match(app.text, /Speed: --$/);
+});
+
+test("failed and aborted replies do not leave the speed measurement running", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json(quota()));
+  const app = harness();
+  await app.emit("session_start");
+  for (const stopReason of ["error", "aborted"]) {
+    await app.emit("before_provider_request", { payload: {} });
+    await app.emit("message_end", { message: {
+      role: "assistant", provider: "openai-codex", model: "test-model",
+      stopReason, usage: { output: 100 },
+    } });
+    assert.match(app.text, /Speed: --$/);
+  }
 });
 
 test("defaults Fast to off and observes server state without mutating the request", async (t) => {
@@ -142,20 +191,20 @@ test("Codex default responses do not falsely confirm or reject priority requests
     data: { type, response: { service_tier: tier } },
   });
   await observe("default", "response.created");
-  assert.match(app.text, /Fast: on \(requested\)$/);
+  assert.match(app.text, /Fast: on \(requested\) \| Speed:/);
   await observe("default");
-  assert.match(app.text, /Fast: on \(requested\)$/);
+  assert.match(app.text, /Fast: on \(requested\) \| Speed:/);
   await observe("priority");
-  assert.match(app.text, /Fast: on$/);
+  assert.match(app.text, /Fast: on \| Speed:/);
   await observe("default");
-  assert.match(app.text, /Fast: on$/);
+  assert.match(app.text, /Fast: on \| Speed:/);
   await app.emit("before_provider_request", { payload: {} });
   await observe("flex");
-  assert.match(app.text, /Fast: on \(server: off\)$/);
+  assert.match(app.text, /Fast: on \(server: off\) \| Speed:/);
   await app.command("off");
   await app.emit("before_provider_request", { payload: {} });
   await observe("default");
-  assert.match(app.text, /Fast: off$/);
+  assert.match(app.text, /Fast: off \| Speed:/);
 });
 
 test("/fast toggles, status does not toggle, and invalid arguments leave the setting unchanged", async () => {
