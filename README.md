@@ -16,9 +16,24 @@ The setup wizard lets you choose extensions and skills by number. Press Enter to
 
 Run setup again to change which extensions from this repository are enabled. Unselected extensions will be disabled; existing skills will not be removed or overwritten.
 
-Skills are shared with Pi and Codex through `~/.agents/skills/`. Keep this repository in place after setup. No skills are bundled yet.
+Skills are shared with Pi and Codex through `~/.agents/skills/`. Keep this repository in place after setup.
 
 Start Pi, or run `/reload` in an existing session to load your selection.
+
+## Skills
+
+### review-fix
+
+Checks and directly fixes current changes for encapsulation, responsibility boundaries, project conventions, correctness, and test coverage. Performs minimal edits and verification rather than only reporting findings, avoiding unnecessary abstractions and never staging or committing automatically. Asks before resolving business ambiguities, making breaking changes, or undertaking large refactors.
+
+Select `review-fix` during setup, then invoke it in Pi:
+
+```text
+/skill:review-fix
+/skill:review-fix Focus on state encapsulation and error handling
+```
+
+By default, checks staged, unstaged, and relevant untracked files; you can also specify a scope. Fixes are written to the current working tree while preserving existing edits and staging state. A `/review:fix` shortcut is not currently provided.
 
 ## Extensions
 
