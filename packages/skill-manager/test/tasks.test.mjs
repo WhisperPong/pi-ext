@@ -98,7 +98,7 @@ test("prompt carries a task-relative reference base and literal user arguments",
 
 test("registers packaged commands without sending instructions until invoked", async () => {
   const app = harness();
-  assert.deepEqual([...app.commands.keys()], ["review:fix", "tasks"]);
+  assert.deepEqual([...app.commands.keys()], ["project:touch", "review:fix", "tasks"]);
   assert.deepEqual(app.messages, []);
   await app.invoke("review:fix", "Focus on state ownership");
   assert.equal(app.messages.length, 1);
@@ -106,6 +106,25 @@ test("registers packaged commands without sending instructions until invoked", a
   assert.match(app.messages[0].text, /check → edit → verify/);
   assert.match(app.messages[0].text, /Respond in the user's language/);
   assert.match(app.messages[0].text, /Focus on state ownership$/);
+});
+
+test("project touch sends its read-only overview instructions and optional focus", async () => {
+  const app = harness();
+  await app.invoke("project:touch", "Focus on order processing");
+  assert.equal(app.messages.length, 1);
+  assert.equal(app.messages[0].options, undefined);
+  assert.match(app.messages[0].text, /Execute the packaged task \/project:touch\./);
+  assert.match(app.messages[0].text, /Core structure/);
+  assert.match(app.messages[0].text, /Architecture/);
+  assert.match(app.messages[0].text, /Key flows/);
+  assert.match(app.messages[0].text, /read-only understanding task/);
+  assert.match(app.messages[0].text, /Focus on order processing$/);
+  await app.invoke("tasks", "project:touch Focus on persistence");
+  assert.match(app.messages[1].text, /Execute the packaged task \/project:touch\./);
+  assert.match(app.messages[1].text, /Focus on persistence$/);
+  assert.deepEqual(app.commands.get("tasks").getArgumentCompletions("project:"), [{
+    value: "project:touch", label: "project:touch", description: app.commands.get("project:touch").description,
+  }]);
 });
 
 test("queues tasks as follow-ups while the current run is busy, without steering", async () => {
@@ -119,8 +138,9 @@ test("queues tasks as follow-ups while the current run is busy, without steering
 test("task picker supports selection and cancellation", async () => {
   const app = harness();
   await app.invoke("tasks");
-  assert.match(app.choices[0].options[0], /^\/review:fix — /);
+  assert.match(app.choices[0].options[0], /^\/project:touch — /);
   assert.equal(app.messages.length, 1);
+  assert.match(app.messages[0].text, /Execute the packaged task \/project:touch\./);
   app.setChoice(() => undefined);
   await app.invoke("tasks");
   assert.equal(app.messages.length, 1);
@@ -187,7 +207,10 @@ test("Pi loads the real extension with namespaced commands and no native skill r
   const extension = loaded.extensions.find((entry) => entry.commands.has("review:fix"));
   assert.ok(extension);
   assert.ok(extension.commands.has("tasks"));
+  assert.ok(extension.commands.has("project:touch"));
   assert.deepEqual(loader.getSkills().skills, []);
   const tasks = discoverTasks(fileURLToPath(new URL("../tasks/", import.meta.url)));
-  assert.match(await readFile(join(tasks[0].baseDir, "references", "checklist.md"), "utf8"), /Encapsulation and Responsibilities/);
+  const review = tasks.find((task) => task.command === "review:fix");
+  assert.ok(review);
+  assert.match(await readFile(join(review.baseDir, "references", "checklist.md"), "utf8"), /Encapsulation and Responsibilities/);
 });

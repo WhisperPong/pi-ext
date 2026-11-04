@@ -29,14 +29,19 @@ A general-purpose manager for packaged task instructions. Tasks are grouped by s
 | `/tasks` | Open the task picker |
 | `/tasks <command> [instructions]` | Run a named task with optional instructions |
 | `/review:fix [instructions]` | Check and directly fix current code changes |
+| `/project:touch [instructions]` | Concisely map project structure, architecture, business, and key data flows |
 
 ```text
 /review:fix
 /review:fix Focus on state encapsulation and error handling
 /tasks review:fix Focus on project conventions
+/project:touch
+/project:touch Focus on order processing and persistence
 ```
 
 `review:fix` checks encapsulation, responsibility boundaries, conventions, correctness, and tests. It performs minimal fixes and verification, preserving existing working-tree edits and staging state. It does not stage or commit automatically, and asks before ambiguous business decisions, breaking changes, or large refactors.
+
+`project:touch` provides a read-only overview of the current project, or a specified subdirectory or business scenario. It highlights core module responsibilities, architecture boundaries, one or two key business/data flows, and a few source entry points. The default is roughly one screen, without exhaustive file listings or code changes; unverified behavior is explicitly marked.
 
 Commands send the task instructions to the current agent; they do not create a separate agent or enforce a workflow state machine. Tasks are explicitly invoked rather than automatically matched. If the agent is busy, the task is queued as a follow-up. Responses follow the user's language.
 

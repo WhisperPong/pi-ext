@@ -29,14 +29,19 @@ pnpm run setup
 | `/tasks` | 打开任务选择菜单 |
 | `/tasks <command> [instructions]` | 执行指定任务，可附加要求 |
 | `/review:fix [instructions]` | 检查并直接修复本次代码改动 |
+| `/project:touch [instructions]` | 精简梳理项目结构、架构、业务与关键数据流 |
 
 ```text
 /review:fix
 /review:fix 重点整理状态封装与异常处理
 /tasks review:fix 重点检查项目规范
+/project:touch
+/project:touch 重点了解订单业务与数据持久化
 ```
 
 `review:fix` 检查封装、职责划分、规范、正确性和测试，直接进行最小修复与验证，保留用户已有工作区改动及暂存状态。不自动暂存或提交；涉及业务歧义、破坏性变更或大规模重构时先确认。
+
+`project:touch` 只读分析当前项目（也可指定子目录或业务场景），以核心目录职责、架构边界和一到两条关键业务／数据流帮助快速上手，并给出少量源码入口。默认控制在一屏左右，不逐文件罗列、不修改代码，不确定的实现会明确标注。
 
 命令把任务指令交给当前 Agent 执行，不创建独立 Agent，也不提供强制工作流状态机。任务需要显式调用，不自动匹配；Agent 忙碌时会排到当前运行结束后执行。回复跟随用户语言。
 
