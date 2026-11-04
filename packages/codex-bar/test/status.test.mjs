@@ -84,37 +84,61 @@ test("uses the same dim theme color as the built-in footer", async (t) => {
   assert.equal(app.text, "\u001b[90mCodex | 5h: 80% left | 7d: 55% left | Effort: high | Fast: off | Speed: --\u001b[39m");
 });
 
-test("shows per-request output speed after completion and resets it on model or session changes", async (t) => {
+test("measures text speed without placeholder flicker, reasoning time, or tool-call samples", async (t) => {
   t.mock.method(globalThis, "fetch", async () => Response.json(quota()));
   let now = 0;
   t.mock.method(performance, "now", () => now);
   const app = harness();
   const message = {
     role: "assistant", provider: "openai-codex", model: "test-model",
-    stopReason: "stop", usage: { output: 120 },
+    stopReason: "stop", usage: { output: 120, reasoning: 20 }, content: [{ type: "text", text: "reply" }],
   };
+  const delta = (type = "text_delta", source = message) => app.emit("message_update", {
+    message: source, assistantMessageEvent: { type, contentIndex: 1, delta: "text", partial: source },
+  });
   await app.emit("session_start");
-  assert.match(app.text, /Speed: --$/);
   await app.emit("message_end", { message });
   assert.match(app.text, /Speed: --$/);
   await app.emit("before_provider_request", { payload: {} });
-  assert.match(app.text, /Speed: \.\.\.$/);
+  const renders = app.widgets.length;
   now = 1000;
+  await delta("thinking_delta");
+  await delta("text_delta", { ...message, model: "previous-model" });
   await app.emit("message_end", { message: { role: "toolResult" } });
   await app.emit("message_end", { message: { ...message, model: "previous-model" } });
-  assert.match(app.text, /Speed: \.\.\.$/);
-  now = 2000;
+  assert.equal(app.widgets.length, renders);
+  now = 10000;
+  await delta();
+  now = 12000;
+  await delta();
+  assert.equal(app.widgets.length, renders);
+  assert.match(app.text, /Speed: --$/);
+  now = 20000;
   await app.emit("message_end", { message });
-  assert.match(app.text, /Speed: 60\.0 tok\/s$/);
-  now = 5000;
+  assert.match(app.text, /Speed: 50\.0 tok\/s$/);
   await app.emit("agent_end");
-  assert.match(app.text, /Speed: 60\.0 tok\/s$/);
+  assert.match(app.text, /Speed: 50\.0 tok\/s$/);
+  await app.emit("before_provider_request", { payload: {} });
+  assert.match(app.text, /Speed: 50\.0 tok\/s$/);
+  await delta();
+  now = 21000;
+  await delta();
+  await app.emit("message_end", { message: { ...message, stopReason: "toolUse" } });
+  assert.match(app.text, /Speed: 50\.0 tok\/s$/);
+  await app.emit("before_provider_request", { payload: {} });
+  await delta();
+  now = 22000;
+  await delta();
+  await app.emit("message_end", { message: { ...message, stopReason: "aborted" } });
+  assert.match(app.text, /Speed: 50\.0 tok\/s$/);
   await app.emit("model_select");
   assert.match(app.text, /Speed: --$/);
   await app.emit("before_provider_request", { payload: {} });
-  now = 6000;
+  await delta();
+  now = 23000;
+  await delta();
   await app.emit("message_end", { message });
-  assert.match(app.text, /Speed: 120\.0 tok\/s$/);
+  assert.match(app.text, /Speed: 100\.0 tok\/s$/);
   await app.emit("session_start");
   assert.match(app.text, /Speed: --$/);
 });
@@ -131,6 +155,24 @@ test("failed and aborted replies do not leave the speed measurement running", as
     } });
     assert.match(app.text, /Speed: --$/);
   }
+});
+
+test("unchanged provider events do not redraw the status widget", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => Response.json(quota()));
+  const app = harness();
+  await app.emit("session_start");
+  await app.emit("before_provider_request", { payload: {} });
+  const event = {
+    provider: "openai-codex", model: "test-model",
+    data: { type: "response.created", response: { service_tier: "default" } },
+  };
+  await app.emit("provider_stream_event", event);
+  const renders = app.widgets.length;
+  await app.emit("provider_stream_event", event);
+  await app.emit("provider_stream_event", {
+    ...event, data: { type: "response.output_text.delta", delta: "text" },
+  });
+  assert.equal(app.widgets.length, renders);
 });
 
 test("defaults Fast to off and observes server state without mutating the request", async (t) => {

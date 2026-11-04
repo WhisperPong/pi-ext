@@ -26,7 +26,7 @@ Start Pi, or run `/reload` in an existing session to load your selection.
 
 Displays remaining Codex quota, reasoning effort (Effort), Fast mode, and output speed below the editor when using a Codex model.
 
-`Speed` shows the latest request's average output tokens per second, including waiting and reasoning time. It displays `...` while a request is running and `--` when no measurement is available.
+`Speed` estimates the latest completed reply's text output tokens per second, excluding waiting and reasoning. The last valid result stays visible during new requests and tool calls. Very short or buffered replies do not update it; `--` means no measurement is available.
 
 | Command | Description |
 | --- | --- |

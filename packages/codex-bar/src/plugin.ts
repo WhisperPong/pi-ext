@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext, MessageEndEvent, ProviderStreamEvent } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, MessageEndEvent, MessageUpdateEvent, ProviderStreamEvent } from "@earendil-works/pi-coding-agent";
 import { FastMode } from "./fast-mode.ts";
 import { OutputSpeed } from "./output-speed.ts";
 import { renderStatus, type UsageState } from "./status-view.ts";
@@ -30,9 +30,11 @@ export class CodexBarPlugin {
     this.pi.on("thinking_level_select", (_event, ctx) => this.render(ctx));
     this.pi.on("before_provider_request", (event, ctx) => this.prepareRequest(event.payload, ctx));
     this.pi.on("provider_stream_event", (event, ctx) => this.observeResponse(event, ctx));
+    this.pi.on("message_update", (event, ctx) => this.observeText(event, ctx));
     this.pi.on("message_end", (event, ctx) => this.finishRequest(event, ctx));
     this.pi.on("session_shutdown", (_event, ctx) => {
       this.pending?.abort();
+      this.speed.reset();
       renderStatus(ctx);
     });
   }
@@ -99,18 +101,29 @@ export class CodexBarPlugin {
     return replacement;
   }
 
+  private observeText(event: MessageUpdateEvent, ctx: ExtensionContext): void {
+    const message = event.message;
+    const delta = event.assistantMessageEvent;
+    if (!isCodexModel(ctx.model) || message.role !== "assistant"
+      || message.provider !== ctx.model?.provider || message.model !== ctx.model.id || delta.type !== "text_delta") return;
+    this.speed.recordTextDelta(delta.contentIndex, delta.delta);
+  }
+
   private finishRequest(event: MessageEndEvent, ctx: ExtensionContext): void {
     const message = event.message;
     if (!isCodexModel(ctx.model) || message.role !== "assistant"
       || message.provider !== ctx.model?.provider || message.model !== ctx.model.id) return;
-    this.speed.finish(message.stopReason === "error" || message.stopReason === "aborted"
-      ? undefined : message.usage.output);
-    this.render(ctx);
+    const previous = this.speed.label;
+    const valid = message.stopReason !== "error" && message.stopReason !== "aborted"
+      && message.stopReason !== "toolUse" && !message.content.some((part) => part.type === "toolCall");
+    this.speed.finish(valid ? message.usage.output : undefined, message.usage.reasoning);
+    if (this.speed.label !== previous) this.render(ctx);
   }
 
   private observeResponse(event: ProviderStreamEvent, ctx: ExtensionContext): void {
     if (!isCodexModel(ctx.model) || event.provider !== ctx.model?.provider || event.model !== ctx.model.id) return;
+    const previous = this.fast.label;
     this.fast.observe(event.data);
-    this.render(ctx);
+    if (this.fast.label !== previous) this.render(ctx);
   }
 }
