@@ -98,7 +98,7 @@ test("prompt carries a task-relative reference base and literal user arguments",
 
 test("registers packaged commands without sending instructions until invoked", async () => {
   const app = harness();
-  assert.deepEqual([...app.commands.keys()], ["project:touch", "review:fix", "tasks"]);
+  assert.deepEqual([...app.commands.keys()], ["language:practice", "project:touch", "review:fix", "tasks"]);
   assert.deepEqual(app.messages, []);
   await app.invoke("review:fix", "Focus on state ownership");
   assert.equal(app.messages.length, 1);
@@ -137,8 +137,9 @@ test("queues tasks as follow-ups while the current run is busy, without steering
 
 test("task picker supports selection and cancellation", async () => {
   const app = harness();
+  app.setChoice((options) => options.find((option) => option.startsWith("/project:touch — ")));
   await app.invoke("tasks");
-  assert.match(app.choices[0].options[0], /^\/project:touch — /);
+  assert.ok(app.choices[0].options.some((option) => option.startsWith("/language:practice — ")));
   assert.equal(app.messages.length, 1);
   assert.match(app.messages[0].text, /Execute the packaged task \/project:touch\./);
   app.setChoice(() => undefined);
@@ -208,6 +209,7 @@ test("Pi loads the real extension with namespaced commands and no native skill r
   assert.ok(extension);
   assert.ok(extension.commands.has("tasks"));
   assert.ok(extension.commands.has("project:touch"));
+  assert.ok(extension.commands.has("language:practice"));
   assert.deepEqual(loader.getSkills().skills, []);
   const tasks = discoverTasks(fileURLToPath(new URL("../tasks/", import.meta.url)));
   const review = tasks.find((task) => task.command === "review:fix");

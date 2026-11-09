@@ -30,6 +30,7 @@ A general-purpose manager for packaged task instructions. Tasks are grouped by s
 | `/tasks <command> [instructions]` | Run a named task with optional instructions |
 | `/review:fix [instructions]` | Check and directly fix current code changes |
 | `/project:touch [instructions]` | Concisely map project structure, architecture, business, and key data flows |
+| `/language:practice [preferences]` | Start a voice language lesson with corrections and learning memory |
 
 ```text
 /review:fix
@@ -42,6 +43,18 @@ A general-purpose manager for packaged task instructions. Tasks are grouped by s
 `review:fix` checks encapsulation, responsibility boundaries, conventions, correctness, and tests. It performs minimal fixes and verification, preserving existing working-tree edits and staging state. It does not stage or commit automatically, and asks before ambiguous business decisions, breaking changes, or large refactors.
 
 `project:touch` provides a read-only overview of the current project, or a specified subdirectory or business scenario. It highlights core module responsibilities, architecture boundaries, one or two key business/data flows, and a few source entry points. The default is roughly one screen, without exhaustive file listings or code changes; unverified behavior is explicitly marked.
+
+#### Voice language lessons
+
+`language:practice` uses [pi-gpt-voice](https://pi.dev/packages/pi-gpt-voice) for realtime audio. Install it once with `pi install npm:pi-gpt-voice`, then run `/reload`. Voice uses its ChatGPT login or an existing `openai-codex` login; use `/voice login` and `/voice setup` if needed. This repository's setup enables `skill-manager`; it does not install the optional voice dependency.
+
+```text
+/language:practice English, native Mandarin, 20 minutes, job interviews
+```
+
+After the task prepares the lesson, run `/voice realtime` in the same session and trusted project directory. You can omit preferences and settle them through conversation. The teacher reuses memory, develops the topic gradually, speaks the target language, and explains corrections in your native language. Pronunciation feedback requires audible speech. Grammar, vocabulary, usage, and pronunciation review points are saved locally and revisited in later lessons.
+
+Memory lives in `~/.pi/agent/language-practice` (or under `PI_CODING_AGENT_DIR`), with a profile, separate review notes per language, and lesson records. The task temporarily adds a block to `.pi/REALTIME-SYSTEM-PROMPT.md` and removes it on normal completion, preserving other prompt content. A disconnected lesson retains its last saved checkpoint; invoke `/language:practice` again to recover. Say you want to end the call to save and stop, or use `/voice stop` for an immediate stop. Duration is checked during conversation rather than enforced by an exact cutoff. For manual prompt cleanup, run `node packages/skill-manager/tasks/language/practice/scripts/lesson.mjs finish` from the lesson's directory using the script's absolute path if it is outside this repository.
 
 Commands send the task instructions to the current agent; they do not create a separate agent or enforce a workflow state machine. Tasks are explicitly invoked rather than automatically matched. If the agent is busy, the task is queued as a follow-up. Responses follow the user's language.
 
