@@ -97,3 +97,36 @@ Displays remaining Codex quota, reasoning effort (Effort), and Fast mode below t
 | `/fast status` | Show the current Fast status |
 
 Fast mode defaults to off whenever a session starts or reloads. Settings apply only to the current session and do not change reasoning effort. Fast mode availability depends on the model and account, and it may consume more quota.
+
+### study-mode
+
+An interactive tutor for planning a learning path and working through it in Pi. Select `study-mode` during setup, then run `/study <topic>` or just `/study`. Answer, confirm a plan, ask for the next lesson, or pause in plain language. The tutor uses the same lesson, quiz, gap review, and assessment workflows as the individual modes below.
+
+```text
+/study Large language models. I know Python and can study five hours a week.
+```
+
+Study checkpoints are saved separately under `~/.study/`, one JSONL journal per topic. They include the confirmed plan, completed work, quiz results, gaps, and the next pending question or activity. Back up this directory to keep the checkpoints. In a fresh Pi session, run `/study` to resume a saved topic, or `/study <new topic>` to start another. With multiple topics, the interactive picker lets you choose. Checkpoints carry learning progress into the new session. The full conversation stays in Pi's own session history.
+
+Use `/study <mode> [details]` when you want to open one activity directly.
+
+| Mode | What it does |
+| --- | --- |
+| `roadmap` | Assess your starting point and propose a roadmap with practical milestones |
+| `plan` | Turn one level into a sequence of lessons and exercises |
+| `lesson` | Teach one concept at a time and let you practice |
+| `quiz` | Check a lesson, score answers, and identify gaps |
+| `feynman` | Work through one gap using a teach-back exercise |
+| `sheet` | Create a five-minute reference for a level |
+| `project` | Define a deliverable and review your work against the criteria |
+| `exam` | Assess a whole level and identify what to review next |
+
+```text
+/study roadmap Large language models. I know Python and can study five hours a week.
+/study lesson Self-attention
+/study quiz The self-attention lesson
+```
+
+The roadmap starts with a short intake and a placement interview. Pi asks one question at a time, then uses your answers to explain where you should start and what you can skip. It proposes a two- to six-level roadmap, five ordered resources, and about 20 hours of hands-on lessons for your starting level by default. Your weekly availability determines the calendar estimate. Pi waits for your confirmation before settling the plan.
+
+The prompts are written in English and the tutor replies in your language.
