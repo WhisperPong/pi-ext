@@ -114,6 +114,8 @@ test("roadmap coaches through intake, evidence-based placement, and a proposal b
   );
 
   assert.match(intake, /\bpreambles?\b/i);
+  assert.match(intake, /\bgoal is clear\b[^.!?]*\bfirst reply\b/i);
+  assert.match(placement, /\bnext token\b/i);
   assert.match(placement, /\bself[- ](?:rating|assessment)s?\b/i);
   assert.match(placement, /\bone\b[^.!?]*\bquestion\b/i);
   assert.match(placement, /\b(?:ungraded|unscored|no score|without scoring|do not (?:grade|score))\b/i);
@@ -182,6 +184,7 @@ test("guidance and progress tools follow the active session branch", async () =>
   const activeBranch = app.branch();
   const active = await app.beforeTurn("I can use Python");
   assert.ok(active.sections.pi_ext_study);
+  assert.match(active.sections.pi_ext_study, /\bold checkpoint\b[^.!?]*\bproduct-use survey\b[^.!?]*\bplacement question\b/i);
   assert.deepEqual(active.selectedTools, ["read", "study_progress"]);
 
   await app.setBranch([]);
@@ -195,6 +198,16 @@ test("guidance and progress tools follow the active session branch", async () =>
   const otherSession = harness({ directory: app.directory });
   await otherSession.startSession();
   assert.deepEqual(await otherSession.beforeTurn("What is next?"), { sections: {}, selectedTools: ["read"] });
+});
+
+test("study checkpoint tool hides successful calls in the terminal and surfaces failures", () => {
+  const app = harness();
+  const tool = app.tools.get("study_progress");
+  const theme = { fg: (_color, text) => text };
+  assert.equal(tool.renderShell, "self");
+  assert.deepEqual(tool.renderCall().render(80), []);
+  assert.deepEqual(tool.renderResult({}, {}, theme, { isError: false }).render(80), []);
+  assert.match(tool.renderResult({}, {}, theme, { isError: true }).render(80).join("\n"), /study progress/i);
 });
 
 test("per-topic checkpoints survive a fresh session and partial writes preserve existing fields", async () => {

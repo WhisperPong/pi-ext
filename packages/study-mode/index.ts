@@ -10,6 +10,7 @@ const SECTION = "pi_ext_study";
 const TOOL = "study_progress";
 const MANUAL = `${STUDY_GUIDANCE}\n\nStudy mode: `;
 const RESUME = "Continue my saved study. Read study_progress and pick up at the last unanswered question or the next unfinished step.";
+const quietRow = { render: () => [], invalidate: () => undefined };
 
 interface StudyLink {
   readonly v: 1;
@@ -59,6 +60,11 @@ export default function studyMode(pi: ExtensionAPI, directory = join(homedir(), 
     defaultActive: false,
     executionMode: "sequential",
     parameters: checkpoint,
+    renderShell: "self",
+    renderCall: () => quietRow,
+    renderResult: (_result, _options, theme, { isError }) => isError
+      ? { ...quietRow, render: () => [theme.fg("error", "Could not access study progress.")] }
+      : quietRow,
     execute: async (_id, { paused, ...changes }, signal, _update, ctx) => {
       const link = studyLink(ctx);
       if (!link || link.paused) throw new Error("Start or resume guided study with /study first.");

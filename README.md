@@ -127,6 +127,6 @@ Use `/study <mode> [details]` when you want to open one activity directly.
 /study quiz The self-attention lesson
 ```
 
-The roadmap starts with a short intake and a placement interview. Pi asks one question at a time, then uses your answers to explain where you should start and what you can skip. It proposes a two- to six-level roadmap, five ordered resources, and about 20 hours of hands-on lessons for your starting level by default. Your weekly availability determines the calendar estimate. Pi waits for your confirmation before settling the plan.
+When your goal is clear, the roadmap starts with a concrete placement question. Pi asks one question at a time and uses your answers to explain where you should start and what you can skip. It fills in any missing scheduling or practice preferences before proposing a two- to six-level roadmap, five ordered resources, and about 20 hours of hands-on lessons for your starting level by default. Your weekly availability determines the calendar estimate. Pi waits for your confirmation before settling the plan.
 
 The prompts are written in English and the tutor replies in your language.
