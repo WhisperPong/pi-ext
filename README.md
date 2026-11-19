@@ -30,6 +30,7 @@ A general-purpose manager for packaged task instructions. Tasks are grouped by s
 | `/tasks <command> [instructions]` | Run a named task with optional instructions |
 | `/review:fix [instructions]` | Check and directly fix current code changes |
 | `/project:touch [instructions]` | Concisely map project structure, architecture, business, and key data flows |
+| `/doc:tech [instructions]` | Write technical documentation as clear prose with useful diagrams |
 | `/language:practice [preferences]` | Start a voice language lesson with corrections and learning memory |
 
 ```text
@@ -38,11 +39,14 @@ A general-purpose manager for packaged task instructions. Tasks are grouped by s
 /tasks review:fix Focus on project conventions
 /project:touch
 /project:touch Focus on order processing and persistence
+/doc:tech Explain the order lifecycle for product and engineering readers
 ```
 
 `review:fix` checks encapsulation, responsibility boundaries, conventions, correctness, and tests. It performs minimal fixes and verification, preserving existing working-tree edits and staging state. It does not stage or commit automatically, and asks before ambiguous business decisions, breaking changes, or large refactors.
 
 `project:touch` provides a read-only overview of the current project, or a specified subdirectory or business scenario. It highlights core module responsibilities, architecture boundaries, one or two key business/data flows, and a few source entry points. The default is roughly one screen, without exhaustive file listings or code changes; unverified behavior is explicitly marked.
+
+`doc:tech` injects English writing instructions for connected, plain-language documentation, avoiding lists and unnecessary code names or paths. It uses diagrams or images where they clarify the narrative. The document's language follows your request. Run it with a writing task, or alone to apply the guidance to your next document request in the current conversation.
 
 #### Voice language lessons
 

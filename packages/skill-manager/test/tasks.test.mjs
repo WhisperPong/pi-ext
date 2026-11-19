@@ -98,7 +98,7 @@ test("prompt carries a task-relative reference base and literal user arguments",
 
 test("registers packaged commands without sending instructions until invoked", async () => {
   const app = harness();
-  assert.deepEqual([...app.commands.keys()], ["language:practice", "project:touch", "review:fix", "tasks"]);
+  assert.deepEqual([...app.commands.keys()], ["doc:tech", "language:practice", "project:touch", "review:fix", "tasks"]);
   assert.deepEqual(app.messages, []);
   await app.invoke("review:fix", "Focus on state ownership");
   assert.equal(app.messages.length, 1);
@@ -210,6 +210,7 @@ test("Pi loads the real extension with namespaced commands and no native skill r
   assert.ok(extension.commands.has("tasks"));
   assert.ok(extension.commands.has("project:touch"));
   assert.ok(extension.commands.has("language:practice"));
+  assert.ok(extension.commands.has("doc:tech"));
   assert.deepEqual(loader.getSkills().skills, []);
   const tasks = discoverTasks(fileURLToPath(new URL("../tasks/", import.meta.url)));
   const review = tasks.find((task) => task.command === "review:fix");
